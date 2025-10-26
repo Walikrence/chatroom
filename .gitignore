@@ -1,0 +1,10 @@
+# Go 相关
+go.mod
+go.sum
+/vendor/
+*.exe
+*.out
+
+
+# 日志文件（若有）
+*.log

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>现代聊天室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        dark: '#1E293B',
+                        light: '#F8FAFC',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide {
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .message-in { animation: fadeInLeft 0.3s ease forwards; }
+            .message-out { animation: fadeInRight 0.3s ease forwards; }
+            @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+            @keyframes fadeInRight { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        }
+    </style>
+</head>
+
+<body class="font-sans bg-gray-100 text-dark h-screen flex flex-col overflow-hidden">
+    <!-- 顶部导航栏 -->
+    <header class="bg-primary text-white shadow-md px-4 py-3 flex items-center justify-between z-10">
+        <div class="flex items-center space-x-2">
+            <i class="fa fa-comments text-2xl"></i>
+            <h1 class="text-xl font-bold">实时聊天室</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span id="currentUser" class="hidden md:inline-block"></span>
+            <button id="logoutBtn" class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm transition-colors">
+                <i class="fa fa-sign-out mr-1"></i> 退出
+            </button>
+            <div id="status" class="flex items-center text-sm">
+                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-2"></span>
+                <span>连接中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="flex flex-1 overflow-hidden">
+        <!-- 聊天消息区 -->
+        <div class="flex-1 flex flex-col bg-light overflow-hidden">
+            <div id="chatLog" class="flex-1 p-4 overflow-y-auto scrollbar-hide space-y-4">
+                <div class="flex justify-center">
+                    <span class="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                        请输入消息开始聊天
+                    </span>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="border-t p-4 bg-white">
+                <div class="flex items-end space-x-2">
+                    <div class="flex-1 relative">
+                        <input 
+                            type="text" 
+                            id="message" 
+                            placeholder="输入消息..." 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        >
+                    </div>
+                    <button 
+                        onclick="sendMessage()" 
+                        class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                    >
+                        <i class="fa fa-paper-plane mr-1"></i> 发送
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 在线用户列表 -->
+        <div class="w-64 bg-white border-l border-gray-200 hidden md:block">
+            <div class="p-4 border-b">
+                <h2 class="font-bold flex items-center">
+                    <i class="fa fa-users text-primary mr-2"></i>
+                    在线用户
+                    <span id="userCount" class="ml-2 bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">0</span>
+                </h2>
+            </div>
+            <div id="userList" class="p-2 overflow-y-auto h-[calc(100%-60px)] scrollbar-hide">
+                <div class="text-gray-500 text-center text-sm py-4">等待用户加入...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let ws;
+        let currentUsername = '';
+        // 页面加载时先验证登录状态
+        window.onload = async () => {
+            try {
+                // 检查登录状态
+                const response = await fetch('/api/check-login', { credentials: 'include' });
+                if (!response.ok) throw new Error('未登录');
+                
+                const data = await response.json();
+                currentUsername = data.username;
+                document.getElementById('currentUser').textContent = `当前用户: ${currentUsername}`;
+                
+                // 初始化聊天室
+                initChat();
+            } catch (err) {
+                // 未登录，跳转到登录页
+                window.location.href = '/login.html';
+            }
+        };
+
+        // 退出登录
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+            window.location.href = '/login.html';
+        });
+
+        // 初始化聊天室
+        function initChat() {
+            const chatLog = document.getElementById('chatLog');
+            const messageInput = document.getElementById('message');
+            const statusElement = document.getElementById('status');
+            const userList = document.getElementById('userList');
+            const userCount = document.getElementById('userCount');
+            const onlineUsers = new Set();
+
+            // 连接WebSocket
+            function connect() {
+                updateStatus('连接中...', 'red');
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws?username=${encodeURIComponent(currentUsername)}`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    updateStatus('已连接', 'green');
+                    addSystemMessage('成功加入聊天室！');
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'userJoined') {
+                        onlineUsers.add(data.username);
+                        updateUserList();
+                        addSystemMessage(`${data.username} 加入了聊天室`);
+                    } else if (data.type === 'userLeft') {
+                        onlineUsers.delete(data.username);
+                        updateUserList();
+                        addSystemMessage(`${data.username} 离开了聊天室`);
+                    } else if (data.type === 'message') {
+                        addMessage(data.username, data.content, data.username === currentUsername);
+                    }
+                };
+
+                ws.onclose = () => {
+                    updateStatus('连接已断开，正在重连...', 'red');
+                    addSystemMessage('与服务器断开连接，正在尝试重连...');
+                    setTimeout(connect, 3000);
+                };
+            }
+
+            // 发送消息
+            window.sendMessage = () => {
+                const message = messageInput.value.trim();
+                if (!message || !ws) return;
+
+                ws.send(JSON.stringify({
+                    type: 'message',
+                    content: message
+                }));
+
+                messageInput.value = '';
+                messageInput.focus();
+            };
+
+            // 添加消息
+            function addMessage(username, content, isSelf = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `flex ${isSelf ? 'justify-end' : 'justify-start'}`;
+                
+                const bubbleClass = isSelf 
+                    ? 'bg-primary text-white message-out' 
+                    : 'bg-gray-200 text-dark message-in';
+
+                messageDiv.innerHTML = `
+                    <div class="${isSelf ? 'order-2' : 'order-1'} max-w-[80%]">
+                        <div class="flex items-center mb-1 ${isSelf ? 'justify-end' : ''}">
+                            <span class="text-xs font-medium text-gray-500">${username}</span>
+                        </div>
+                        <div class="${bubbleClass} px-4 py-2 rounded-2xl rounded-tl-none">
+                            ${content}
+                        </div>
+                    </div>
+                `;
+                
+                chatLog.appendChild(messageDiv);
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+            // 系统消息
+            function addSystemMessage(content) {
+                const systemDiv = document.createElement('div');
+                systemDiv.className = 'flex justify-center';
+                systemDiv.innerHTML = `<span class="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">${content}</span>`;
+                chatLog.appendChild(systemDiv);
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+            // 更新状态
+            function updateStatus(text, color) {
+                const colorClass = color === 'green' ? 'bg-green-400' : 'bg-red-400';
+                statusElement.innerHTML = `
+                    <span class="inline-block w-2 h-2 rounded-full ${colorClass} mr-2"></span>
+                    <span>${text}</span>
+                `;
+            }
+
+            // 更新用户列表
+            function updateUserList() {
+                userList.innerHTML = '';
+                userCount.textContent = onlineUsers.size;
+
+                if (onlineUsers.size === 0) {
+                    userList.innerHTML = '<div class="text-gray-500 text-center text-sm py-4">暂无在线用户</div>';
+                    return;
+                }
+
+                onlineUsers.forEach(username => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'flex items-center p-2 hover:bg-gray-100 rounded-lg transition-colors';
+                    userDiv.innerHTML = `
+                        <span class="inline-block w-2 h-2 rounded-full bg-secondary mr-2"></span>
+                        <span class="${username === currentUsername ? 'font-medium text-primary' : ''}">
+                            ${username} ${username === currentUsername ? '(你)' : ''}
+                        </span>
+                    `;
+                    userList.appendChild(userDiv);
+                });
+            }
+
+            // 回车发送
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            // 页面关闭时通知
+            window.onbeforeunload = () => {
+                if (ws) ws.close();
+            };
+
+            // 开始连接
+            connect();
+        }
+    </script>
+</body>
+</html>
