@@ -8,12 +8,12 @@
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-md overflow-hidden transform transition-all duration-300 hover:shadow-lg">
         <div class="p-6">
             <div class="flex justify-center mb-6">
-                <i class="fa fa-comments text-4xl text-primary"></i>
+                <i class="fa fa-comments text-4xl text-blue-600"></i>
             </div>
-            <h2 class="text-2xl font-bold text-center mb-6">聊天室登录</h2>
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">聊天室登录</h2>
             
             <form id="loginForm" class="space-y-4">
                 <div>
@@ -23,7 +23,7 @@
                             <i class="fa fa-user"></i>
                         </span>
                         <input type="text" id="username" name="username" 
-                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                             placeholder="请输入用户名" required>
                     </div>
                 </div>
@@ -35,22 +35,23 @@
                             <i class="fa fa-lock"></i>
                         </span>
                         <input type="password" id="password" name="password" 
-                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                             placeholder="请输入密码" required>
                     </div>
                 </div>
                 
-                <div id="errorMsg" class="hidden text-red-500 text-sm"></div>
+                <div id="errorMsg" class="hidden text-red-500 text-sm p-2 bg-red-50 rounded"></div>
                 
+                <!-- 优化后的登录按钮 -->
                 <button type="submit" 
-                    class="w-full bg-primary hover:bg-primary/90 text-white py-2 px-4 rounded-lg transition-colors duration-200 font-medium">
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
                     登录
                 </button>
             </form>
             
             <div class="mt-6 text-center">
                 <span class="text-gray-600">还没有账号？</span>
-                <a href="/register.html" class="text-primary hover:underline ml-1">立即注册</a>
+                <a href="/register.html" class="text-blue-600 hover:text-blue-700 hover:underline ml-1 font-medium">立即注册</a>
             </div>
         </div>
     </div>
@@ -69,13 +70,12 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password }),
-                    credentials: 'include' // 携带Cookie
+                    credentials: 'include'
                 });
 
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message || '登录失败');
                 
-                // 登录成功，跳转到聊天室
                 window.location.href = '/';
             } catch (err) {
                 errorMsg.textContent = err.message;
