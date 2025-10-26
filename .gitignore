@@ -3,7 +3,7 @@ go.mod
 go.sum
 /vendor/
 *.exe
-/bin/
+bin/
 *.out
 
 
