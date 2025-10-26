@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package user;
+option go_package = "./user";
+
+// 用户信息
+message User {
+  string username = 1;
+  string password = 2;
+}
+
+// 注册请求
+message RegisterRequest {
+  User user = 1;
+}
+
+// 注册响应
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// 登录请求
+message LoginRequest {
+  User user = 1;
+}
+
+// 登录响应
+message LoginResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// 用户认证服务
+service UserService {
+  // 注册用户（检查重名）
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // 验证用户登录
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
