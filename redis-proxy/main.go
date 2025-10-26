@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
-	pb "my-web-socket/user" // 替换为实际项目路径
+	pb   "my-web-socket/user/user" // 替换为实际项目路径
 	"google.golang.org/grpc"
 )
 
